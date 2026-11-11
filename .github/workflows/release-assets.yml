@@ -96,7 +96,7 @@ jobs:
           & "$env:ISCC" "/DAppVersion=$v" 'Installer\CursorWpf.iss'
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed: $LASTEXITCODE" }
           if (!(Test-Path "Release\CursorWpf_V$v.exe")) { throw 'EXE installer missing' }
-      - name: Build MSI installer (WiX Toolset 4)
+      - name: Build MSI installer (WiX Toolset 5)
         shell: pwsh
         run: |
           $v = '${{ steps.version.outputs.version }}'
@@ -133,7 +133,7 @@ jobs:
             - WPF desktop application (.NET Framework 4.8)
             - ZIP portable package
             - EXE installer (Inno Setup 6)
-            - MSI installer (WiX Toolset 4)
+            - MSI installer (WiX Toolset 5)
             Download ZIP, EXE or MSI from the Assets section below.
           files: |
             Release/CursorWpf_V${{ steps.version.outputs.version }}.zip
