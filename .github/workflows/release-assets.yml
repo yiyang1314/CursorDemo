@@ -14,7 +14,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: cursorwpf-release-${{ github.ref }
+  group: cursorwpf-release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
   build:
@@ -34,18 +34,19 @@ jobs:
           $version = (Get-Content 'Build/version.txt' -Raw).Trim()
           if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid version: $version" }
           "version=$version" >> $env:GITHUB_OUTPUT
-          $tag = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch' -and '${{ inputs.tag_name }'.Trim()) {
-            '${{ inputs.tag_name }'.Trim()
+          $inputTag = '${{ inputs.tag_name }}'
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch' -and -not [string]::IsNullOrWhiteSpace($inputTag)) {
+            $tag = $inputTag.Trim()
           } elseif ($env:GITHUB_REF_TYPE -eq 'tag') {
-            $env:GITHUB_REF_NAME
-          } else { "v$version" }
+            $tag = $env:GITHUB_REF_NAME
+          } else { $tag = "v$version" }
           "tag=$tag" >> $env:GITHUB_OUTPUT
       - name: Verify tag matches version
         if: github.ref_type == 'tag'
         shell: pwsh
         run: |
-          $v = '${{ steps.version.outputs.version }'
-          $t = '${{ github.ref_name }'
+          $v = '${{ steps.version.outputs.version }}'
+          $t = '${{ github.ref_name }}'
           if ($t -ne "v$v" -and $t -ne "RELEASE-$v") { throw "Tag $t does not match version $v" }
       - name: Build Release
         shell: pwsh
@@ -55,7 +56,7 @@ jobs:
       - name: Stage publish folder
         shell: pwsh
         run: |
-          $v = '${{ steps.version.outputs.version }'
+          $v = '${{ steps.version.outputs.version }}'
           $out = 'CursorWpf.App\bin\Release'
           if (!(Test-Path "$out\CursorWpf.exe")) { throw "Missing $out\CursorWpf.exe" }
           if (Test-Path Publish) { Remove-Item Publish -Recurse -Force }
@@ -67,7 +68,7 @@ jobs:
       - name: Create versioned ZIP
         shell: pwsh
         run: |
-          $v = '${{ steps.version.outputs.version }'
+          $v = '${{ steps.version.outputs.version }}'
           New-Item Release -ItemType Directory -Force | Out-Null
           Compress-Archive -Path Publish\* -DestinationPath "Release\CursorWpf_V$v.zip" -CompressionLevel Optimal
           if (!(Test-Path "Release\CursorWpf_V$v.zip")) { throw 'ZIP creation failed' }
@@ -78,7 +79,8 @@ jobs:
             choco install innosetup --no-progress -y
             if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed' }
           }
-          $p = @("$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")
+          $programFilesX86 = [Environment]::GetFolderPath('ProgramFilesX86')
+          $p = @("$programFilesX86\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe")
           $iscc = $p | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (!$iscc) { $c = Get-Command ISCC.exe -ErrorAction SilentlyContinue; if ($c) { $iscc = $c.Source } }
           if (!$iscc) { throw 'ISCC.exe not found' }
@@ -86,14 +88,14 @@ jobs:
       - name: Build EXE installer
         shell: pwsh
         run: |
-          $v = '${{ steps.version.outputs.version }'
+          $v = '${{ steps.version.outputs.version }}'
           & "$env:ISCC" "/DAppVersion=$v" 'Installer\CursorWpf.iss'
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed: $LASTEXITCODE" }
           if (!(Test-Path "Release\CursorWpf_V$v.exe")) { throw 'EXE installer missing' }
       - name: Verify release assets
         shell: pwsh
         run: |
-          $v = '${{ steps.version.outputs.version }'
+          $v = '${{ steps.version.outputs.version }}'
           foreach ($f in @("Release\CursorWpf_V$v.zip", "Release\CursorWpf_V$v.exe")) {
             if (!(Test-Path $f)) { throw "Missing release asset: $f" }
             Get-Item $f | Format-Table Name,Length
@@ -101,27 +103,27 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CursorWpf_V${{ steps.version.outputs.version }_packages
+          name: CursorWpf_V${{ steps.version.outputs.version }}_packages
           path: |
-            Release/CursorWpf_V${{ steps.version.outputs.version }.zip
-            Release/CursorWpf_V${{ steps.version.outputs.version }.exe
+            Release/CursorWpf_V${{ steps.version.outputs.version }}.zip
+            Release/CursorWpf_V${{ steps.version.outputs.version }}.exe
           if-no-files-found: error
           retention-days: 30
       - name: Publish GitHub Release with ZIP and EXE assets
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }
-          name: CursorWpf V${{ steps.version.outputs.version }
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: CursorWpf V${{ steps.version.outputs.version }}
           body: |
-            ## CursorWpf V${{ steps.version.outputs.version }
+            ## CursorWpf V${{ steps.version.outputs.version }}
             - WPF desktop application (.NET Framework 4.8)
             - ZIP portable package
             - EXE installer (Inno Setup 6)
             Download ZIP or EXE from the Assets section below.
           files: |
-            Release/CursorWpf_V${{ steps.version.outputs.version }.zip
-            Release/CursorWpf_V${{ steps.version.outputs.version }.exe
+            Release/CursorWpf_V${{ steps.version.outputs.version }}.zip
+            Release/CursorWpf_V${{ steps.version.outputs.version }}.exe
           fail_on_unmatched_files: true
           overwrite_files: true
           generate_release_notes: true
