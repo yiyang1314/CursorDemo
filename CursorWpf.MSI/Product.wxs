@@ -30,7 +30,7 @@
 
   <Fragment>
     <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
-      <Files Include="$(var.PublishDir)\\**" />
+      <Files Include="$(var.PublishDir)\**" />
     </ComponentGroup>
 
     <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="A4D1D5A7-7C41-4C6D-8A8D-5A2A7F42C101">
@@ -40,7 +40,7 @@
                 WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveCursorWpfStartMenuFolder" On="uninstall" />
       <RegistryValue Root="HKLM"
-                     Key="Software\\CursorWpf"
+                     Key="Software\CursorWpf"
                      Name="Installed"
                      Type="integer"
                      Value="1"
