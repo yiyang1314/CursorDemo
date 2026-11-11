@@ -176,7 +176,7 @@ if errorlevel 1 (
 )
 echo [OK] Created %RELEASE%\%NAME%.exe
 
- :pack_msi
+:pack_msi
 rem ---------- 7) package MSI installer via WiX Toolset 5 ----------
 set "DOTNET_EXE="
 for /f "delims=" %%I in ('where dotnet.exe 2^>nul') do if not defined DOTNET_EXE set "DOTNET_EXE=%%~I"
