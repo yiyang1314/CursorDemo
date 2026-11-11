@@ -6,6 +6,5 @@
     <OutputPath Condition="'$(OutputPath)' == ''">$(MSBuildProjectDirectory)\..\Release\</OutputPath>
     <OutputName>CursorWpf_V$(AppVersion)</OutputName>
     <DefineConstants>AppVersion=$(AppVersion);PublishDir=$(PublishDir)</DefineConstants>
-    <SuppressIces>ICE61</SuppressIces>
   </PropertyGroup>
 </Project>
