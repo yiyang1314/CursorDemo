@@ -3,7 +3,7 @@
 ## 项目结构
 
 - `CursorWpf.App`：WPF 主程序，目标框架 .NET Framework 4.8。
-- `CursorWpf.MSI`：WiX Toolset 4 SDK 安装包工程。
+- `CursorWpf.MSI`：WiX Toolset 5 SDK 安装包工程。
 - `Installer/CursorWpf.iss`：原有 Inno Setup EXE 安装程序，继续保留。
 
 ## 构建流程
@@ -12,7 +12,7 @@
 2. 将主程序输出及 Docs 文档复制到根目录 `Publish`。
 3. 生成 ZIP 便携包。
 4. 使用 Inno Setup 6 生成 EXE 安装程序（本机安装了 Inno Setup 时）。
-5. 使用 .NET 8 SDK 和 WiX Toolset 4 SDK 项目生成 MSI 安装程序。
+5. 使用 .NET 8 SDK 和 WiX Toolset 5 SDK 项目生成 MSI 安装程序。
 
 ## 版本命名
 
