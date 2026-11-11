@@ -4,12 +4,7 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CursorWpf.App", "CursorWpf.App\CursorWpf.App.csproj", "{A9E1E3D2-0D15-4F65-9D2B-8E2D1A3C1001}"
 EndProject
-Project("{66A26720-8FB5-11D2-AA7E-00C04F688DDE}") = "CursorWpf.MSI", "CursorWpf.MSI", "{C71A0A0B-7B3B-4D5E-9E2D-7B2A9D8C1002}"
-	ProjectSection(SolutionItems) = preProject
-		CursorWpf.MSI\CursorWpf.MSI.wixproj = CursorWpf.MSI\CursorWpf.MSI.wixproj
-		CursorWpf.MSI\Product.wxs = CursorWpf.MSI\Product.wxs
-		CursorWpf.MSI\README.md = CursorWpf.MSI\README.md
-	EndProjectSection
+Project("{B7DD6F7E-DEF8-4E67-B5B7-07EF123DB6F0}") = "CursorWpf.MSI", "CursorWpf.MSI\CursorWpf.MSI.wixproj", "{C71A0A0B-7B3B-4D5E-9E2D-7B2A9D8C1002}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,5 +16,7 @@ Global
 		{A9E1E3D2-0D15-4F65-9D2B-8E2D1A3C1001}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A9E1E3D2-0D15-4F65-9D2B-8E2D1A3C1001}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A9E1E3D2-0D15-4F65-9D2B-8E2D1A3C1001}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C71A0A0B-7B3B-4D5E-9E2D-7B2A9D8C1002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C71A0A0B-7B3B-4D5E-9E2D-7B2A9D8C1002}.Release|Any CPU.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 EndGlobal
