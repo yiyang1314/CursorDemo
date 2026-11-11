@@ -22,8 +22,8 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="CursorWpf" />
     </StandardDirectory>
-    <!-- Per-machine MSI must create shortcuts in the common (all users) Start Menu. -->
-    <StandardDirectory Id="CommonProgramsFolder">
+    <!-- WiX v5 supports ProgramMenuFolder; place the shortcut under Start Menu > Programs. -->
+    <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="ApplicationProgramsFolder" Name="CursorWpf" />
     </StandardDirectory>
   </Fragment>
