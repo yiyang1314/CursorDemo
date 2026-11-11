@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="CursorWpf"
+    Manufacturer="CursorWpf"
+    Version="$(var.AppVersion)"
+    UpgradeCode="6F7D0B8E-5B2C-4C64-AB34-6F4A20D91B13"
+    Scope="perMachine"
+    InstallerVersion="500">
+
+    <SummaryInformation Description="CursorWpf Windows Installer Package" Manufacturer="CursorWpf" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of CursorWpf is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="MainFeature" Title="CursorWpf" Level="1">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="CursorWpf" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="CursorWpf" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="A4D1D5A7-7C41-4C6D-8A8D-5A2A7F42C101">
+      <Shortcut Id="CursorWpfStartMenuShortcut"
+                Name="CursorWpf"
+                Target="[INSTALLFOLDER]CursorWpf.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveCursorWpfStartMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKLM"
+                     Key="Software\CursorWpf"
+                     Name="Installed"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>
