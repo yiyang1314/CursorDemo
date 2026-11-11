@@ -1,0 +1,11 @@
+<Project Sdk="WixToolset.Sdk/4.0.5">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <AppVersion Condition="'$(AppVersion)' == ''">1.1.0</AppVersion>
+    <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildProjectDirectory)\..\Publish</PublishDir>
+    <OutputPath Condition="'$(OutputPath)' == ''">$(MSBuildProjectDirectory)\..\Release\</OutputPath>
+    <OutputName>CursorWpf_V$(AppVersion)</OutputName>
+    <DefineConstants>AppVersion=$(AppVersion);PublishDir=$(PublishDir)</DefineConstants>
+    <SuppressIces>ICE61</SuppressIces>
+  </PropertyGroup>
+</Project>
