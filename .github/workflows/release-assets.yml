@@ -27,6 +27,10 @@ jobs:
           fetch-depth: 0
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
+      - name: Setup .NET SDK for WiX
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
       - name: Read version
         id: version
         shell: pwsh
@@ -92,12 +96,20 @@ jobs:
           & "$env:ISCC" "/DAppVersion=$v" 'Installer\CursorWpf.iss'
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed: $LASTEXITCODE" }
           if (!(Test-Path "Release\CursorWpf_V$v.exe")) { throw 'EXE installer missing' }
+      - name: Build MSI installer (WiX Toolset 4)
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          dotnet build 'CursorWpf.MSI\CursorWpf.MSI.wixproj' -c Release "-p:AppVersion=$v" "-p:PublishDir=$PWD\Publish" "-p:OutputPath=$PWD\Release\"
+          if ($LASTEXITCODE -ne 0) { throw "WiX MSI build failed: $LASTEXITCODE" }
+          if (!(Test-Path "Release\CursorWpf_V$v.msi")) { throw 'MSI installer missing' }
       - name: Verify release assets
         shell: pwsh
         run: |
           $v = '${{ steps.version.outputs.version }}'
-          foreach ($f in @("Release\CursorWpf_V$v.zip", "Release\CursorWpf_V$v.exe")) {
+          foreach ($f in @("Release\CursorWpf_V$v.zip", "Release\CursorWpf_V$v.exe", "Release\CursorWpf_V$v.msi")) {
             if (!(Test-Path $f)) { throw "Missing release asset: $f" }
+            if ((Get-Item $f).Length -le 0) { throw "Release asset is empty: $f" }
             Get-Item $f | Format-Table Name,Length
           }
       - name: Upload workflow artifact
@@ -107,6 +119,7 @@ jobs:
           path: |
             Release/CursorWpf_V${{ steps.version.outputs.version }}.zip
             Release/CursorWpf_V${{ steps.version.outputs.version }}.exe
+            Release/CursorWpf_V${{ steps.version.outputs.version }}.msi
           if-no-files-found: error
           retention-days: 30
       - name: Publish GitHub Release with ZIP and EXE assets
@@ -120,10 +133,12 @@ jobs:
             - WPF desktop application (.NET Framework 4.8)
             - ZIP portable package
             - EXE installer (Inno Setup 6)
-            Download ZIP or EXE from the Assets section below.
+            - MSI installer (WiX Toolset 4)
+            Download ZIP, EXE or MSI from the Assets section below.
           files: |
             Release/CursorWpf_V${{ steps.version.outputs.version }}.zip
             Release/CursorWpf_V${{ steps.version.outputs.version }}.exe
+            Release/CursorWpf_V${{ steps.version.outputs.version }}.msi
           fail_on_unmatched_files: true
           overwrite_files: true
           generate_release_notes: true
