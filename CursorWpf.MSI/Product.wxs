@@ -4,7 +4,7 @@
     Name="CursorWpf"
     Manufacturer="CursorWpf"
     Version="$(var.AppVersion)"
-    UpgradeCode="6F7D0B8E-5B2C-4C64-AB34-6F4A20D91B13"
+    UpgradeCode="7D5C8A21-6D37-4A61-9F8C-2D9B7A4E6103"
     Scope="perMachine"
     InstallerVersion="500">
 
