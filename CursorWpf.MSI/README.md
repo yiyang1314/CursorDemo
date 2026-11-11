@@ -1,6 +1,6 @@
 # CursorWpf.MSI
 
-WiX Toolset 4 SDK 项目，为 CursorWpf (.NET Framework 4.8) 生成标准 Windows Installer（MSI）。
+WiX Toolset 5 SDK 项目，为 CursorWpf (.NET Framework 4.8) 生成标准 Windows Installer（MSI）。
 
 ## 构建
 
