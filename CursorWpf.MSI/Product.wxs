@@ -22,7 +22,7 @@
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="CursorWpf" />
     </StandardDirectory>
-    <!-- WiX v5 supports ProgramMenuFolder; place the shortcut under Start Menu > Programs. -->
+    <!-- ProgramMenuFolder is a per-user location; its component must use an HKCU key path. -->
     <StandardDirectory Id="ProgramMenuFolder">
       <Directory Id="ApplicationProgramsFolder" Name="CursorWpf" />
     </StandardDirectory>
@@ -33,15 +33,16 @@
       <Files Include="$(var.PublishDir)\**" />
     </ComponentGroup>
 
+    <!-- Keep the per-user Start Menu shortcut isolated from per-machine application files. -->
     <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="A4D1D5A7-7C41-4C6D-8A8D-5A2A7F42C101">
       <Shortcut Id="CursorWpfStartMenuShortcut"
                 Name="CursorWpf"
                 Target="[INSTALLFOLDER]CursorWpf.exe"
                 WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveCursorWpfStartMenuFolder" On="uninstall" />
-      <RegistryValue Root="HKLM"
+      <RegistryValue Root="HKCU"
                      Key="Software\CursorWpf"
-                     Name="Installed"
+                     Name="StartMenuShortcutInstalled"
                      Type="integer"
                      Value="1"
                      KeyPath="yes" />
