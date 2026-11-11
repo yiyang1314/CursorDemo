@@ -175,8 +175,32 @@ if errorlevel 1 (
 )
 echo [OK] Created %RELEASE%\%NAME%.exe
 
+rem ---------- 7) package MSI installer via WiX Toolset 4 ----------
+set "DOTNET_EXE="
+for /f "delims=" %%I in ('where dotnet.exe 2^>nul') do if not defined DOTNET_EXE set "DOTNET_EXE=%%~I"
+if not defined DOTNET_EXE if exist "%ProgramFiles%\dotnet\dotnet.exe" set "DOTNET_EXE=%ProgramFiles%\dotnet\dotnet.exe"
+if not defined DOTNET_EXE (
+    echo [ERROR] .NET SDK not found. Install .NET 8 SDK to build the MSI package.
+    exit /b 7
+)
+echo [MSI] Building CursorWpf MSI with WiX Toolset 4 SDK...
+"%DOTNET_EXE%" build "%ROOT%\CursorWpf.MSI\CursorWpf.MSI.wixproj" -c Release -p:AppVersion=%VERSION% -p:PublishDir="%PUBLISH%" -p:OutputPath="%RELEASE%\"
+if errorlevel 1 (
+    echo [ERROR] MSI packaging failed.
+    exit /b 7
+)
+if not exist "%RELEASE%\%NAME%.msi" (
+    echo [ERROR] MSI output missing: %RELEASE%\%NAME%.msi
+    exit /b 7
+)
+for %%F in ("%RELEASE%\%NAME%.msi") do if %%~zF LEQ 0 (
+    echo [ERROR] MSI output is empty.
+    exit /b 7
+)
+echo [OK] Created %RELEASE%\%NAME%.msi
+
 :summary
-rem ---------- 7) clean temp staging folder ----------
+rem ---------- 8) clean temp staging folder ----------
 if exist "%PUBLISH%" (
     rmdir /s /q "%PUBLISH%" 2>nul
     if exist "%PUBLISH%" (
