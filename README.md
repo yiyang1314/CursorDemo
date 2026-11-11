@@ -31,3 +31,14 @@ Run `Build\\build_all.bat`. It locates MSBuild via PATH, `vswhere.exe`, and comm
 - `Build/` version and local build/package scripts.
 - `Installer/` Inno Setup configuration.
 - `.github/workflows/` CI and release automation.
+
+
+## 安装包构建
+
+项目现提供三种版本化发布产物：
+
+- `CursorWpf_VX.X.X.zip`：便携 ZIP 包。
+- `CursorWpf_VX.X.X.exe`：Inno Setup 安装程序。
+- `CursorWpf_VX.X.X.msi`：WiX Toolset 4 Windows Installer，工程位于 `CursorWpf.MSI`。
+
+本机一键构建请运行 `Build\build.bat`。MSI 构建需要 .NET 8 SDK；WPF 主程序仍以 .NET Framework 4.8 为目标。详细说明见 `Docs/MSI安装包构建与部署.md`。
