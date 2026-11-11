@@ -7,11 +7,12 @@ rem               + publish.bat + package.bat
 rem
 rem  Pipeline: locate MSBuild engine -> build Release -> stage
 rem            Publish folder -> create ZIP -> create EXE installer
-rem            (Inno Setup 6, optional) -> clean temp staging
+rem            (Inno Setup 6) -> MSI (WiX Toolset 5) -> clean staging
 rem
 rem  Artifacts (naming rule: ProjectName_VX.X.X):
 rem    Release\CursorWpf_V<version>.zip
 rem    Release\CursorWpf_V<version>.exe   (requires Inno Setup 6)
+rem    Release\CursorWpf_V<version>.msi   (requires .NET 8 SDK + WiX 5)
 rem  Version source: Build\version.txt (plain ASCII X.Y.Z, no BOM)
 rem ============================================================
 cd /d "%~dp0.."
@@ -165,7 +166,7 @@ if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%P
 if defined ISCC goto :pack_exe
 echo [WARN] Inno Setup 6 not found, EXE installer skipped. ZIP package is still created.
 echo         Install Inno Setup 6 from https://jrsoftware.org/isinfo.php to build the EXE.
-goto :summary
+goto :pack_msi
 
 :pack_exe
 "%ISCC%" /DAppVersion=%VERSION% "%ROOT%\Installer\CursorWpf.iss"
@@ -175,7 +176,8 @@ if errorlevel 1 (
 )
 echo [OK] Created %RELEASE%\%NAME%.exe
 
-rem ---------- 7) package MSI installer via WiX Toolset 4 ----------
+ :pack_msi
+rem ---------- 7) package MSI installer via WiX Toolset 5 ----------
 set "DOTNET_EXE="
 for /f "delims=" %%I in ('where dotnet.exe 2^>nul') do if not defined DOTNET_EXE set "DOTNET_EXE=%%~I"
 if not defined DOTNET_EXE if exist "%ProgramFiles%\dotnet\dotnet.exe" set "DOTNET_EXE=%ProgramFiles%\dotnet\dotnet.exe"
@@ -183,7 +185,7 @@ if not defined DOTNET_EXE (
     echo [ERROR] .NET SDK not found. Install .NET 8 SDK to build the MSI package.
     exit /b 7
 )
-echo [MSI] Building CursorWpf MSI with WiX Toolset 4 SDK...
+echo [MSI] Building CursorWpf MSI with WiX Toolset 5 SDK...
 "%DOTNET_EXE%" build "%ROOT%\CursorWpf.MSI\CursorWpf.MSI.wixproj" -c Release -p:AppVersion=%VERSION% -p:PublishDir="%PUBLISH%" -p:OutputPath="%RELEASE%\"
 if errorlevel 1 (
     echo [ERROR] MSI packaging failed.
@@ -218,6 +220,7 @@ echo ------------------------------------------------------------
 echo [SUCCESS] Artifacts:
 if exist "%RELEASE%\%NAME%.zip" echo   %RELEASE%\%NAME%.zip
 if exist "%RELEASE%\%NAME%.exe" echo   %RELEASE%\%NAME%.exe
+if exist "%RELEASE%\%NAME%.msi" echo   %RELEASE%\%NAME%.msi
 echo ------------------------------------------------------------
 endlocal
 exit /b 0
