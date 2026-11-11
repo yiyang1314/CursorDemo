@@ -1,0 +1,1 @@
+CursorWpf WPF application project. See repository root README.md and Docs/.

@@ -1,0 +1,1 @@
+﻿namespace CursorWpf.Services{public static class LocalizationService{public static string CurrentLanguage{get;private set;}="zh-CN";public static void SetLanguage(string language){CurrentLanguage=language;/* UI labels are progressively resource-bound in later milestones. */}}}

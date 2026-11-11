@@ -1,0 +1,9 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    Enables WPF XAML compilation for legacy (non-SDK) csproj when built with "dotnet msbuild".
+    The dotnet SDK does not import Microsoft.WinFX.targets for legacy projects; passing
+    /p:CustomAfterMicrosoftCommonTargets=<this file> wires the WinFX (XAML) build pipeline in.
+    WpfSdkWinFXTargets is supplied by find_msbuild.bat (points to the SDK's WinFX.targets).
+  -->
+  <Import Project="$(WpfSdkWinFXTargets)" Condition="'$(WpfSdkWinFXTargets)' != '' and Exists('$(WpfSdkWinFXTargets)')" />
+</Project>
