@@ -1,0 +1,122 @@
+﻿<control:BaseWindow x:Class="AyuUI.Controll.Simples.Theme1Window"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AyuUI.Controll.Simples"
+        xmlns:control="clr-namespace:AyuUI.Controll.Controls"
+        xmlns:ioc="clr-namespace:AyuUI.Controll.IOC.Simple"
+        xmlns:convert="clr-namespace:AyuUI.Controll.Convertors"
+        mc:Ignorable="d"
+        Width="1100"
+        Height="700"
+        WindowStartupLocation="CenterScreen"
+        IsDarkTheme="{Binding IsDarkTheme}"
+        LanguageText="{Binding CurrentLangText}"
+        SettingsCommand="{Binding OpenSettingsCommand}"
+        ToggleThemeCommand="{Binding ToggleThemeCommand}"
+        HelpCommand="{Binding OpenHelpCommand}"
+        ToggleLanguageCommand="{Binding SwitchLanguageCommand}">
+    <control:BaseWindow.Resources>
+        <!-- 声明布尔转指示灯状态转换器 -->
+        <convert:BoolToIndicatorStateConverter x:Key="BoolToState" />
+        <!-- 声明转换器 -->
+        <convert:BoolToVisibilityConverter x:Key="BoolToVis" />
+        <convert:NullOrZeroToCollapsedConverter x:Key="NullOrZeroToVis" />
+    </control:BaseWindow.Resources>
+    <!-- 这里写你的业务页面内容 -->
+    <Grid Background="LightBlue" >
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="{Binding DeviceInfo}" Foreground="White" FontSize="14" Margin="0,0,0,16" />
+            <Button Content="执行多实例通信测试" Command="{Binding SwitchLanguageCommand}" Padding="16,8" />
+            <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
+
+                <!-- 1. 多种状态机指示灯展示 -->
+                <Border Background="#1E2026" BorderBrush="#2F3340" BorderThickness="1" CornerRadius="10" Padding="20,16" Margin="0,0,0,20">
+                    <StackPanel Orientation="Horizontal">
+                        <control:AyuStateIndicator State="Offline" Label="离线" Margin="0,0,20,0" />
+                        <control:AyuStateIndicator State="Idle" Label="待机就绪" Margin="0,0,20,0" />
+                        <control:AyuStateIndicator State="Running" Label="自动运行中" Margin="0,0,20,0" />
+                        <control:AyuStateIndicator State="Warning" Label="温度预警" Margin="0,0,20,0" />
+                        <control:AyuStateIndicator State="Error" Label="急停报警" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 2. 开关按钮与状态机动态联动 -->
+                <Border Background="#1E2026" BorderBrush="#2F3340" BorderThickness="1" CornerRadius="10" Padding="20,16">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="PLC 自动轮询采集：" Foreground="#E5E7EB" FontSize="13.5" VerticalAlignment="Center" Margin="0,0,12,0" />
+
+                        <!-- 标准拨动开关 -->
+                        <control:AyuToggleSwitch IsChecked="{Binding IsPollingEnabled}"
+                                      Command="{Binding TogglePollingCommand}"
+                                      Width="54"
+                                      OnText="ON"
+                                      OffText="OFF"
+                                      Margin="0,0,24,0" />
+
+                        <!-- 实时联动的状态指示灯 -->
+                        <control:AyuStateIndicator State="{Binding PlcCurrentState}"
+                                        Label="{Binding PlcStateDescription}"
+                                        IndicatorSize="14" />
+                    </StackPanel>
+                </Border>
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Orientation="Horizontal">
+
+                    <!-- 示例 1：绑定布尔属性 IsDeviceConnected (true=绿灯 Running, false=灰灯 Offline) -->
+                    <control:AyuStateIndicator State="{Binding IsDeviceConnected, Converter={StaticResource BoolToState}}"
+                                    Label="设备通信连接状态"
+                                    Margin="0,0,0,12" />
+
+                    <!-- 示例 2：绑定布尔属性 HasAlarm 且使用参数 "Error" (true=红灯闪烁 Error, false=绿灯 Running) -->
+                    <control:AyuStateIndicator State="{Binding HasAlarm, Converter={StaticResource BoolToState}, ConverterParameter='Error'}"
+                                    Label="系统急停报警指示"
+                                    Margin="0,0,0,12" />
+
+                    <!-- 示例 3：配合前面的拨动开关，实现开关闭合时指示灯实时联动 -->
+                    <StackPanel Orientation="Horizontal">
+                        <control:AyuToggleSwitch x:Name="MySwitch" Margin="0,0,12,0" />
+                        <control:AyuStateIndicator State="{Binding IsChecked, ElementName=MySwitch, Converter={StaticResource BoolToState}}"
+                                        Label="开关实时状态" />
+                    </StackPanel>
+                    <!-- ========================================================== -->
+                    <!-- 1. bool 转可见/折叠示例                                       -->
+                    <!-- ========================================================== -->
+                    <!-- 当 IsLoading 为 true 时显示此面板 -->
+                    <Border Background="#1E2026" Padding="12" Margin="0,0,0,14"
+                Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                        <TextBlock Text="正在加载中..." Foreground="White" />
+                    </Border>
+
+                    <!-- 当 IsError 为 true 时折叠（使用 Inverse 参数：true -> Collapsed） -->
+                    <TextBlock Text="一切正常" Foreground="#10B981" 
+                   Visibility="{Binding IsError, Converter={StaticResource BoolToVis}, ConverterParameter='Inverse'}" />
+
+
+                    <!-- ========================================================== -->
+                    <!-- 2. 数字为 null 或 0 时转折叠示例                             -->
+                    <!-- ========================================================== -->
+                    <!-- 当 UnreadCount 数字为 0 或 null 时，整个徽标 Border 自动折叠隐藏；大于 0 时自动显示 -->
+                    <Border Background="#EF4444" CornerRadius="10" Padding="8,2" HorizontalAlignment="Left"
+                Visibility="{Binding UnreadCount, Converter={StaticResource NullOrZeroToVis}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="未读消息: " Foreground="White" FontSize="12" />
+                            <TextBlock Text="{Binding UnreadCount}" Foreground="White" FontSize="12" FontWeight="Bold" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 当设备报警代码 ErrorCode 为 0 或 null 时折叠 -->
+                    <TextBlock Text="故障代码：无" 
+                   Visibility="{Binding ErrorCode, Converter={StaticResource NullOrZeroToVis}}" />
+
+                </StackPanel>
+
+                <!-- 示例：配置为左侧边栏导航 (Position="Left") -->
+                <control:AyuNavigationMenu Grid.Column="0"
+                           ItemsSource="{Binding MenuItems}"
+                           SelectedItem="{Binding SelectedMenuItem}"
+                           Position="Left" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</control:BaseWindow>

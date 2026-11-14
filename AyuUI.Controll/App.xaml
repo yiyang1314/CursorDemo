@@ -1,0 +1,14 @@
+﻿<Application
+    x:Class="AyuUI.Controll.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    StartupUri="Simples/Theme1Window.xaml">
+    <Application.Resources>
+        <!-- 引入你的通用样式或主题资源字典 -->
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/AyuUI.Controll;component/Themes/GenericTheme.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

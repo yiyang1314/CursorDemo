@@ -1,0 +1,78 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+	<TargetFramework>net8.0-windows7.0</TargetFramework>
+	<Nullable>enable</Nullable>
+	<UseWPF>true</UseWPF>
+	<ImplicitUsings>enable</ImplicitUsings>
+	<OutputType>WinExe</OutputType>
+	<StartupObject>AyuUI.Controll.App</StartupObject>
+	  <!-- ========================================== -->
+	  <!-- 1. NuGet 基础元数据配置                    -->
+	  <!-- ========================================== -->
+	  <PackageId>AyuUI.Controll</PackageId>
+	  <Version>1.0.0</Version>
+	  <!-- 每次更新迭代时升级版本号，如 1.0.1 -->
+	  <Authors>yiyangyu</Authors>
+	  <Company>AyuStudio</Company>
+	  <Product>AyuUI Framework</Product>
+	  <Description>一套高颜值、零依赖、支持注解IoC、消息总线与丰富UI控件的现代WPF自研框架。</Description>
+	  <PackageTags>WPF;UI;MVVM;IOC;AyuUI</PackageTags>
+
+	  <!-- ========================================== -->
+	  <!-- 关键：指定 NuGet 使用的 README 文件         -->
+	  <!-- ========================================== -->
+	  <PackageReadmeFile>README.md</PackageReadmeFile>
+	  
+	  <!-- ========================================== -->
+	  <!-- 2. 自动化打包开关（核心）      dotnet nuget add source "D:\LocalNugetRepository" name "LocalRepo"              -->
+	  <!-- ========================================== -->
+	  <!-- 开启后，每次执行 dotnet build 或 release 时会自动在输出目录生成 .nupkg 包 -->
+	  <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+	  <!-- 可选：如果希望把生成的 XML 文档注释一起打包进 NuGet（方便其他项目调用时有智能提示） -->
+	  <GenerateDocumentationFile>true</GenerateDocumentationFile>
+	  <CheckEolTargetFramework>false</CheckEolTargetFramework>
+	  <!-- 可选：开源许可证与图标（若有需要可填写） -->
+	   <PackageLicenseExpression>MIT</PackageLicenseExpression>
+	   <SupportedOSPlatformVersion>7.0</SupportedOSPlatformVersion> 
+  </PropertyGroup>
+	<PropertyGroup Condition="'$(TargetFramework)' != 'net48'">
+		<ImplicitUsings>enable</ImplicitUsings>
+	</PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="publish\**" />
+    <EmbeddedResource Remove="publish\**" />
+    <None Remove="publish\**" />
+    <Page Remove="publish\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="11.0.0" />
+  </ItemGroup>
+	<ItemGroup>
+		<None Include="Properties\PublishProfiles\FolderProfile.pubxml.user" />
+		<None Include="README.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+  <ItemGroup>
+    <None Update="Controls\AyuNavigationMenu.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </None>
+    <None Update="Pages\AyuMessageWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </None>
+    <None Update="Pages\AyuToastContainer.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </None>
+    <None Update="Simples\AyuSimpleWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </None>
+    <None Update="Themes\GenericTheme.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Extension\" />
+  </ItemGroup>
+
+</Project>
