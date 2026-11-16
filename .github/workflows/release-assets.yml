@@ -52,11 +52,31 @@ jobs:
           $v = '${{ steps.version.outputs.version }}'
           $t = '${{ github.ref_name }}'
           if ($t -ne "v$v" -and $t -ne "RELEASE-$v") { throw "Tag $t does not match version $v" }
+      - name: Restore AyuUI.Controll NuGet dependencies
+        shell: pwsh
+        run: |
+          dotnet restore 'AyuUI.Controll\AyuUI.Controll.csproj'
+          if ($LASTEXITCODE -ne 0) { throw "AyuUI.Controll restore failed: $LASTEXITCODE" }
       - name: Build Release
         shell: pwsh
         run: |
-          msbuild CursorWpf.sln /m /t:Rebuild /p:Configuration=Release '/p:Platform=Any CPU'
+          # Build the app project instead of the solution: the solution also contains
+          # CursorWpf.MSI.wixproj, whose payload (Publish folder) is staged only later.
+          # Legacy CSProj conditions use "Release|AnyCPU" (no space in the platform).
+          msbuild 'CursorWpf.App\CursorWpf.App.csproj' /m /t:Clean,Build /p:Configuration=Release '/p:Platform=AnyCPU'
           if ($LASTEXITCODE -ne 0) { throw "MSBuild failed: $LASTEXITCODE" }
+      - name: Pack AyuUI.Controll NuGet package
+        shell: pwsh
+        run: |
+          # AyuUI.Controll: net48 / net6.0-windows / net8.0-windows class library.
+          # Package version comes from AyuUI.Controll.csproj <Version>, independent of Build/version.txt.
+          dotnet build 'AyuUI.Controll\AyuUI.Controll.csproj' -c Release "-p:GeneratePackageOnBuild=true"
+          if ($LASTEXITCODE -ne 0) { throw "AyuUI.Controll pack failed: $LASTEXITCODE" }
+          $pkg = Get-ChildItem 'AyuUI.Controll\bin\Release\AyuUI.Controll.*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (!$pkg) { throw 'AyuUI.Controll nupkg not produced' }
+          New-Item Release -ItemType Directory -Force | Out-Null
+          Copy-Item $pkg.FullName Release -Force
+          Write-Host "NuGet package: $($pkg.Name) ($($pkg.Length) bytes)"
       - name: Stage publish folder
         shell: pwsh
         run: |
@@ -100,7 +120,7 @@ jobs:
         shell: pwsh
         run: |
           $v = '${{ steps.version.outputs.version }}'
-          dotnet build 'CursorWpf.MSI\CursorWpf.MSI.wixproj' -c Release "-p:AppVersion=$v" "-p:PublishDir=$PWD\Publish" "-p:OutputPath=$PWD\Release\"
+          dotnet build 'CursorWpf.MSI\CursorWpf.MSI.wixproj' -c Release -t:Rebuild "-p:AppVersion=$v" "-p:PublishDir=$PWD\Publish" "-p:OutputPath=$PWD\Release\"
           if ($LASTEXITCODE -ne 0) { throw "WiX MSI build failed: $LASTEXITCODE" }
           if (!(Test-Path "Release\CursorWpf_V$v.msi")) { throw 'MSI installer missing' }
       - name: Verify release assets
@@ -112,6 +132,12 @@ jobs:
             if ((Get-Item $f).Length -le 0) { throw "Release asset is empty: $f" }
             Get-Item $f | Format-Table Name,Length
           }
+          $nupkg = Get-ChildItem 'Release\AyuUI.Controll.*.nupkg' -ErrorAction SilentlyContinue
+          if (!$nupkg) { throw 'Missing release asset: Release\AyuUI.Controll.*.nupkg' }
+          foreach ($f in $nupkg) {
+            if ($f.Length -le 0) { throw "Release asset is empty: $($f.FullName)" }
+            $f | Format-Table Name,Length
+          }
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -120,9 +146,10 @@ jobs:
             Release/CursorWpf_V${{ steps.version.outputs.version }}.zip
             Release/CursorWpf_V${{ steps.version.outputs.version }}.exe
             Release/CursorWpf_V${{ steps.version.outputs.version }}.msi
+            Release/AyuUI.Controll.*.nupkg
           if-no-files-found: error
           retention-days: 30
-      - name: Publish GitHub Release with ZIP, EXE and MSI assets
+      - name: Publish GitHub Release with ZIP, EXE, MSI and NuGet assets
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
@@ -134,11 +161,13 @@ jobs:
             - ZIP portable package
             - EXE installer (Inno Setup 6)
             - MSI installer (WiX Toolset 5)
-            Download ZIP, EXE or MSI from the Assets section below.
+            - AyuUI.Controll NuGet package (net48 / net6.0-windows / net8.0-windows)
+            Download ZIP, EXE, MSI or the NuGet package from the Assets section below.
           files: |
             Release/CursorWpf_V${{ steps.version.outputs.version }}.zip
             Release/CursorWpf_V${{ steps.version.outputs.version }}.exe
             Release/CursorWpf_V${{ steps.version.outputs.version }}.msi
+            Release/AyuUI.Controll.*.nupkg
           fail_on_unmatched_files: true
           overwrite_files: true
           generate_release_notes: true

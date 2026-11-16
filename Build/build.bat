@@ -6,19 +6,24 @@ rem  Merged from: build.bat + build_all.bat + find_msbuild.bat
 rem               + publish.bat + package.bat
 rem
 rem  Pipeline: locate MSBuild engine -> build Release -> stage
-rem            Publish folder -> create ZIP -> create EXE installer
-rem            (Inno Setup 6) -> MSI (WiX Toolset 5) -> clean staging
+rem            Publish folder -> create ZIP -> pack AyuUI.Controll
+rem            NuGet -> create EXE installer (Inno Setup 6) -> MSI
+rem            (WiX Toolset 5) -> clean staging
 rem
 rem  Artifacts (naming rule: ProjectName_VX.X.X):
 rem    Release\CursorWpf_V<version>.zip
 rem    Release\CursorWpf_V<version>.exe   (requires Inno Setup 6)
 rem    Release\CursorWpf_V<version>.msi   (requires .NET 8 SDK + WiX 5)
+rem    Release\AyuUI.Controll.<pkgversion>.nupkg (multi-target class library,
+rem      pkgversion comes from AyuUI.Controll.csproj <Version>)
 rem  Version source: Build\version.txt (plain ASCII X.Y.Z, no BOM)
 rem ============================================================
 cd /d "%~dp0.."
 set "ROOT=%CD%"
 set "BUILD_DIR=%~dp0"
 set "SLN=%ROOT%\CursorWpf.sln"
+set "APP_PROJ=%ROOT%\CursorWpf.App\CursorWpf.App.csproj"
+set "AYUUI_PROJ=%ROOT%\AyuUI.Controll\AyuUI.Controll.csproj"
 set "PUBLISH=%ROOT%\Publish"
 set "RELEASE=%ROOT%\Release"
 
@@ -43,6 +48,10 @@ echo [INFO] Version: %VERSION%
 
 if not exist "%SLN%" (
     echo [ERROR] Solution not found: %SLN%
+    exit /b 2
+)
+if not exist "%APP_PROJ%" (
+    echo [ERROR] Application project not found: %APP_PROJ%
     exit /b 2
 )
 
@@ -116,12 +125,39 @@ if not defined MSBUILD_EXE (
 )
 echo [INFO] MSBuild: "%MSBUILD_EXE%" (mode: %MSBUILD_MODE%)
 
-rem ---------- 3) build Release ----------
-echo [BUILD] Release / Any CPU
-if /i "%MSBUILD_MODE%"=="DOTNET" (
-    "%MSBUILD_EXE%" msbuild "%SLN%" /m /t:Clean,Build /p:Configuration=Release "/p:Platform=Any CPU" "/p:CustomAfterMicrosoftCommonTargets=%BUILD_DIR%wpf-legacy.targets" "/p:WpfSdkWinFXTargets=%MSBUILD_WINFX%" /verbosity:minimal /nologo
+rem 2e) .NET SDK (dotnet build / pack for AyuUI.Controll and the WiX 5 MSI)
+set "DOTNET_EXE="
+for /f "delims=" %%I in ('where dotnet.exe 2^>nul') do if not defined DOTNET_EXE set "DOTNET_EXE=%%~I"
+if not defined DOTNET_EXE if exist "%ProgramFiles%\dotnet\dotnet.exe" set "DOTNET_EXE=%ProgramFiles%\dotnet\dotnet.exe"
+if defined DOTNET_EXE (
+    echo [INFO] .NET SDK: "%DOTNET_EXE%"
 ) else (
-    "%MSBUILD_EXE%" "%SLN%" /m /t:Clean,Build /p:Configuration=Release "/p:Platform=Any CPU" /p:RestorePackages=false /verbosity:minimal
+    echo [WARN] .NET SDK not found. AyuUI.Controll NuGet pack and MSI packaging need it.
+)
+
+rem ---------- 3) build application projects only ----------
+rem  Build the app project instead of the whole solution: the solution also
+rem  contains CursorWpf.MSI.wixproj, and its payload (Publish folder) is only
+rem  staged in step 4. Building the solution here would make the WiX project
+rem  run too early against a missing/stale Publish folder.
+echo [BUILD] Release / Any CPU (CursorWpf.App + AyuUI.Controll)
+if defined DOTNET_EXE (
+    rem  AyuUI.Controll is a PackageReference consumer; its assets must exist
+    rem  before the legacy app project resolves the ProjectReference.
+    "%DOTNET_EXE%" restore "%AYUUI_PROJ%" --verbosity quiet
+    if errorlevel 1 (
+        echo [ERROR] AyuUI.Controll restore failed.
+        exit /b 3
+    )
+) else (
+    echo [WARN] .NET SDK not found, skipping NuGet restore for AyuUI.Controll.
+)
+if /i "%MSBUILD_MODE%"=="DOTNET" (
+    "%MSBUILD_EXE%" msbuild "%APP_PROJ%" /m /t:Clean,Build /p:Configuration=Release "/p:Platform=AnyCPU" "/p:CustomAfterMicrosoftCommonTargets=%BUILD_DIR%wpf-legacy.targets" "/p:WpfSdkWinFXTargets=%MSBUILD_WINFX%" /verbosity:minimal /nologo
+) else (
+    rem  The legacy csproj conditions are written as "Release|AnyCPU" (no space);
+    rem  building the project directly must not use the solution's "Any CPU" label.
+    "%MSBUILD_EXE%" "%APP_PROJ%" /m /t:Clean,Build /p:Configuration=Release "/p:Platform=AnyCPU" /p:RestorePackages=false /verbosity:minimal
 )
 if errorlevel 1 (
     echo [ERROR] Build failed.
@@ -143,6 +179,13 @@ if not exist "%ROOT%\CursorWpf.App\bin\Release\CursorWpf.exe" (
 )
 copy /y "%ROOT%\CursorWpf.App\bin\Release\CursorWpf.exe" "%PUBLISH%\" >nul
 if exist "%ROOT%\CursorWpf.App\bin\Release\CursorWpf.exe.config" copy /y "%ROOT%\CursorWpf.App\bin\Release\CursorWpf.exe.config" "%PUBLISH%\" >nul
+rem  Copy runtime dependencies (AyuUI.Controll and its NuGet transitives) so the
+rem  ZIP/EXE/MSI payload can start on a machine without the build output folder.
+for %%F in ("%ROOT%\CursorWpf.App\bin\Release\*.dll") do if exist "%%~fF" copy /y "%%~fF" "%PUBLISH%\" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to stage application dependencies.
+    exit /b 4
+)
 xcopy /e /i /y "%ROOT%\Docs" "%PUBLISH%\Docs" >nul
 copy /y "%ROOT%\README.md" "%PUBLISH%\README.md" >nul
 echo [OK] Publish folder staged.
@@ -157,6 +200,51 @@ if errorlevel 1 (
     exit /b 5
 )
 echo [OK] Created %RELEASE%\%NAME%.zip
+
+rem ---------- 5.5) package AyuUI.Controll NuGet: Release\AyuUI.Controll.<pkgversion>.nupkg ----------
+rem  AyuUI.Controll is a multi-target class library (net48 / net6.0-windows / net8.0-windows).
+rem  Package version comes from AyuUI.Controll.csproj <Version>, independent of Build\version.txt.
+set "AYUUI_NUPKG="
+set "AYUUI_PKG="
+if not exist "%AYUUI_PROJ%" (
+    echo [ERROR] AyuUI.Controll project not found: %AYUUI_PROJ%
+    exit /b 8
+)
+if not defined DOTNET_EXE (
+    echo [ERROR] .NET SDK not found. Install .NET SDK to build AyuUI.Controll.
+    exit /b 8
+)
+echo [NUPKG] Building AyuUI.Controll (net48;net6.0-windows;net8.0-windows) and packing NuGet...
+"%DOTNET_EXE%" restore "%AYUUI_PROJ%" --verbosity quiet
+if errorlevel 1 (
+    echo [ERROR] AyuUI.Controll restore failed.
+    exit /b 8
+)
+"%DOTNET_EXE%" build "%AYUUI_PROJ%" -c Release --no-restore -p:GeneratePackageOnBuild=true --verbosity minimal
+if errorlevel 1 (
+    echo [ERROR] AyuUI.Controll build / NuGet pack failed.
+    exit /b 8
+)
+for %%F in ("%ROOT%\AyuUI.Controll\bin\Release\AyuUI.Controll.*.nupkg") do if exist "%%~fF" set "AYUUI_NUPKG=%%~fF"
+if not defined AYUUI_NUPKG (
+    echo [ERROR] NuGet package not produced under AyuUI.Controll\bin\Release.
+    exit /b 8
+)
+copy /y "%AYUUI_NUPKG%" "%RELEASE%\" >nul
+if errorlevel 1 (
+    echo [ERROR] Failed to copy %AYUUI_NUPKG% to %RELEASE%.
+    exit /b 8
+)
+for %%F in ("%RELEASE%\AyuUI.Controll.*.nupkg") do if exist "%%~fF" set "AYUUI_PKG=%%~nxF"
+if not defined AYUUI_PKG (
+    echo [ERROR] NuGet package missing in %RELEASE%.
+    exit /b 8
+)
+for %%F in ("%RELEASE%\%AYUUI_PKG%") do if %%~zF LEQ 0 (
+    echo [ERROR] NuGet package is empty: %RELEASE%\%AYUUI_PKG%
+    exit /b 8
+)
+echo [OK] Created %RELEASE%\%AYUUI_PKG%
 
 rem ---------- 6) package EXE installer: Release\CursorWpf_V<version>.exe ----------
 set "ISCC="
@@ -178,15 +266,15 @@ echo [OK] Created %RELEASE%\%NAME%.exe
 
 :pack_msi
 rem ---------- 7) package MSI installer via WiX Toolset 5 ----------
-set "DOTNET_EXE="
-for /f "delims=" %%I in ('where dotnet.exe 2^>nul') do if not defined DOTNET_EXE set "DOTNET_EXE=%%~I"
-if not defined DOTNET_EXE if exist "%ProgramFiles%\dotnet\dotnet.exe" set "DOTNET_EXE=%ProgramFiles%\dotnet\dotnet.exe"
 if not defined DOTNET_EXE (
     echo [ERROR] .NET SDK not found. Install .NET 8 SDK to build the MSI package.
     exit /b 7
 )
 echo [MSI] Building CursorWpf MSI with WiX Toolset 5 SDK...
-"%DOTNET_EXE%" build "%ROOT%\CursorWpf.MSI\CursorWpf.MSI.wixproj" -c Release -p:AppVersion=%VERSION% -p:PublishDir="%PUBLISH%" -p:OutputPath="%RELEASE%\"
+rem  Remove any previous same-version MSI first so the existence check below can
+rem  only succeed for a package freshly linked from the staged Publish folder.
+if exist "%RELEASE%\%NAME%.msi" del /q "%RELEASE%\%NAME%.msi"
+"%DOTNET_EXE%" build "%ROOT%\CursorWpf.MSI\CursorWpf.MSI.wixproj" -c Release -t:Rebuild -p:AppVersion=%VERSION% -p:PublishDir="%PUBLISH%" -p:OutputPath="%RELEASE%\"
 if errorlevel 1 (
     echo [ERROR] MSI packaging failed.
     exit /b 7
@@ -221,6 +309,7 @@ echo [SUCCESS] Artifacts:
 if exist "%RELEASE%\%NAME%.zip" echo   %RELEASE%\%NAME%.zip
 if exist "%RELEASE%\%NAME%.exe" echo   %RELEASE%\%NAME%.exe
 if exist "%RELEASE%\%NAME%.msi" echo   %RELEASE%\%NAME%.msi
+if defined AYUUI_PKG echo   %RELEASE%\%AYUUI_PKG%
 echo ------------------------------------------------------------
 endlocal
 exit /b 0

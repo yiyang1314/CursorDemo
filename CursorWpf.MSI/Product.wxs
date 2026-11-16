@@ -40,6 +40,8 @@
                 Target="[INSTALLFOLDER]CursorWpf.exe"
                 WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveCursorWpfStartMenuFolder" On="uninstall" />
+      <!-- 快捷方式目录属于用户配置目录，KeyPath 必须是 HKCU 下的注册表值，
+           否则 WiX 的 ICE38/ICE43/ICE57 校验会失败 -->
       <RegistryValue Root="HKCU"
                      Key="Software\CursorWpf"
                      Name="StartMenuShortcutInstalled"
