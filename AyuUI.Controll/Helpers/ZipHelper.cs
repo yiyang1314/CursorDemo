@@ -48,7 +48,28 @@ namespace AyuUI.Controll.Helpers
                 Directory.CreateDirectory(destinationDirectoryPath);
             }
 
+#if NETFRAMEWORK
+            // .NET Framework 的 ZipFile 没有 overwriteFiles 重载，手动逐项解压实现相同的覆盖语义
+            using (var archive = ZipFile.OpenRead(sourceZipFilePath))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    var targetPath = Path.GetFullPath(Path.Combine(destinationDirectoryPath, entry.FullName));
+
+                    if (string.IsNullOrEmpty(entry.Name))
+                    {
+                        // 目录项
+                        Directory.CreateDirectory(targetPath);
+                        continue;
+                    }
+
+                    Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
+                    entry.ExtractToFile(targetPath, overwrite: true);
+                }
+            }
+#else
             ZipFile.ExtractToDirectory(sourceZipFilePath, destinationDirectoryPath, overwriteFiles: true);
+#endif
         }
     }
 }

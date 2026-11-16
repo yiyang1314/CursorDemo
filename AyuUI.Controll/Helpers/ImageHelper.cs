@@ -177,8 +177,9 @@ namespace AyuUI.Controll.Helpers
                     x = (sourceBmp.Width - logoBmp.Width) / 2; y = (sourceBmp.Height - logoBmp.Height) / 2; break;
             }
 
-            // 设置透明度属性矩阵
-            float opacity = Math.Clamp(opacityPercent, 0, 100) / 100f;
+            // 设置透明度属性矩阵（.NET Framework 4.8 没有 Math.Clamp，这里用等价的边界判断）
+            int clampedPercent = opacityPercent < 0 ? 0 : (opacityPercent > 100 ? 100 : opacityPercent);
+            float opacity = clampedPercent / 100f;
             var attributes = new ImageAttributes();
             var matrix = new ColorMatrix
             {

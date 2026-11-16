@@ -90,7 +90,15 @@ namespace AyuUI.Controll.Helpers
         {
             if (string.IsNullOrEmpty(text)) return string.Empty;
             var bytes = Encoding.UTF8.GetBytes(text);
+#if NETFRAMEWORK
+            byte[] hashBytes;
+            using (var md5 = MD5.Create())
+            {
+                hashBytes = md5.ComputeHash(bytes);
+            }
+#else
             var hashBytes = MD5.HashData(bytes);
+#endif
 
             var sb = new StringBuilder();
             foreach (var b in hashBytes)
@@ -107,7 +115,15 @@ namespace AyuUI.Controll.Helpers
         {
             if (string.IsNullOrEmpty(text)) return string.Empty;
             var bytes = Encoding.UTF8.GetBytes(text);
+#if NETFRAMEWORK
+            byte[] hashBytes;
+            using (var sha256 = SHA256.Create())
+            {
+                hashBytes = sha256.ComputeHash(bytes);
+            }
+#else
             var hashBytes = SHA256.HashData(bytes);
+#endif
 
             var sb = new StringBuilder();
             foreach (var b in hashBytes)
