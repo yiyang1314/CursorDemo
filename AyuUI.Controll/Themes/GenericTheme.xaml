@@ -1,9 +1,11 @@
 ﻿<ResourceDictionary
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="clr-namespace:AyuUI.Controll.Controls">
+    xmlns:local="clr-namespace:AyuUI.Controll.Controls"
+    xmlns:con="clr-namespace:AyuUI.Controll.Convertors">
 
     <local:ShortcutKeyConverter x:Key="ShortcutKeyConverter" />
+    <con:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
     <!-- ===================================================================== -->
     <!-- 通用深色分割线样式 (Separator)                                         -->
     <!-- ===================================================================== -->

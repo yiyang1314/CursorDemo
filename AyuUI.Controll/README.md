@@ -1,4 +1,5 @@
-﻿# 自定义控件
+# 自定义控件
+
 ## 1 功能介绍
 - 自定义Windows 标题栏
 - 自定义菜单风格
@@ -13,7 +14,7 @@
 
 > 引入类库
 ```cs
-donet add package AyuUI.Controll 1.0.1
+donet add package AyuUI.Controll 1.0.0
 ```
 > App.xaml引用
 ```xml
@@ -21,7 +22,6 @@ donet add package AyuUI.Controll 1.0.1
         <!-- 引入你的通用样式或主题资源字典 -->
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="pack://application:,,,/AyuUI.Controll;component/Themes/Generic.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/AyuUI.Controll;component/Themes/GenericTheme.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
@@ -30,7 +30,7 @@ donet add package AyuUI.Controll 1.0.1
 
 > 界面引用
 ```xml
-xmlns:controls="clr-namespace:AyuUI.Controll.Controls"
+xmlns:control="clr-namespace:AyuUI.Controll.Controls"
 ```
 
 ## 3 功能组件
@@ -102,8 +102,15 @@ StyleMode样式风格支持四种：
     </controls:CustomWindow.TitleBarMenuContent>
 ```
 
+菜单主题：
+
+- KeycapDarkMenuStyle：Cursor主题
+- VsDarkMenuStyle ：VisuaStudio主题
+
 ## 4 自定义IOC
+
 ### 4.1 定义注入类
+
 > Service：标记IOC；Inject：依赖注入
 ```cs
 [Service(ServiceLifetime.Transient)]
@@ -298,7 +305,8 @@ AyuContainer.Default.Resolve<AyuSimpleWindow>();
 ```
 
 ## 7 自定义TOast弹框
-### 7.1 自定义TOast弹框
+### 7.1 自定义Toast弹框
+
 ```cs
 
         private void OnDeviceStatusReceived(DeviceStatusMessage message)
@@ -316,6 +324,7 @@ AyuContainer.Default.Resolve<AyuSimpleWindow>();
 ```
 
 ## 8 其他组件
+
 ### 8.1 状态机
 ```xml
             <StackPanel Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -416,8 +425,13 @@ AyuContainer.Default.Resolve<AyuSimpleWindow>();
                            Position="Left" />
 ```
 
+- Position: 位置（left，top，bottom）
+
+
 
 ### 8.4 工具类
+- 文件配置功能：JsonHelper、XmlHelper、ZipHelper、EncryptHelper
+
 ```cs
         public void RunDemo()
         {
@@ -460,5 +474,105 @@ AyuContainer.Default.Resolve<AyuSimpleWindow>();
             string logoImg = @"D:\Assets\brand_stamp.png";
             string resultImg = @"D:\Products\device_watermarked.jpg";
             ImageHelper.AddImageWatermark(productImg, logoImg, resultImg, ImageHelper.WatermarkPosition.BottomRight, opacityPercent: 40);
+        }
+```
+
+- GPT AI聊天 API集成
+```cs
+
+        public static async Task Simple()
+        {
+           var userPrompt = "你好，请用中文回答我。";
+            // 1. 初始化对话历史上下文
+            List<Dictionary<string, string>> _apiHistory = new List<Dictionary<string, string>>();
+            _apiHistory.Add(new Dictionary<string, string> { { "role", "user" }, { "content", userPrompt } });
+
+            string apiUrl = "https://api.deepseek.com/chat/completions"; // 或其他 OpenAI 兼容地址
+            string apiKey = "你的-API-Key";
+            string model = "deepseek-chat";
+
+            StringBuilder fullReply = new StringBuilder();
+
+            try
+            {
+                // 调用封装好的静态工具类
+                await AiChatHelper.SendStreamChatAsync(
+                    apiUrl,
+                    apiKey,
+                    model,
+                    _apiHistory,
+                    token =>
+                    {
+                        // 回调中拿到流式返回的片段
+                        fullReply.Append(token);
+                        // 此处可结合前面提到的节流队列更新 UI
+                    },
+                    cancellationToken: default);
+
+                // 3. AI 回复完成后，将完整回复追加到历史上下文（用于多轮对话）
+                _apiHistory.Add(new Dictionary<string, string> { { "role", "assistant" }, { "content", fullReply.ToString() } });
+            }
+            catch (Exception ex)
+            {
+                // 异常处理
+                System.Windows.MessageBox.Show($"错误: {ex.Message}");
+                await SimpleMultiImageAsync("", null);
+            }
+        }
+
+                /// <summary>
+        /// 发送带图片和文字的消息
+        /// </summary>
+        private static async Task SimpleMultiImageAsync(string textPrompt, List<string> localImagePaths)
+        {
+            // 1. 构造 OpenAI 标准的多媒体 content 数组
+            var contentList = new List<object>();
+            // 维护的历史上下文（支持多模态 object）
+            List<Dictionary<string, object>> _apiHistory = new List<Dictionary<string, object>>();
+            // 如果有文字，加入文字部分
+            if (!string.IsNullOrEmpty(textPrompt))
+            {
+                contentList.Add(new { type = "text", text = textPrompt });
+            }
+
+            foreach (var png in localImagePaths)
+            {
+                // 如果有图片，将图片转为 Base64 并加入部分
+                if (!string.IsNullOrEmpty(png) && File.Exists(png))
+                {
+                    string base64ImageUrl = ImageHelper.ImageFileToBase64(png);
+                    contentList.Add(new
+                    {
+                        type = "image_url",
+                        image_url = new
+                        {
+                            url = base64ImageUrl,
+                            detail = "auto" // 可选: low, high, auto
+                        }
+                    });
+                }
+            }
+
+            // 2. 将当前用户消息加入上下文
+            var userMessage = new Dictionary<string, object>
+            {
+                { "role", "user" },
+                { "content", contentList } // 传入包含文本和图片的数组
+            };
+            _apiHistory.Add(userMessage);
+
+            string apiUrl = API_BASE_URL; // 或兼容多模态的模型地址（如 DeepSeek-V2.5, GPT-4o 等）
+            string apiKey = Environment.GetEnvironmentVariable(APIKEY); ;
+            string model = "gpt-4o"; // 确保选择支持 Vision 的大模型
+
+            // 3. 调用流式传输（复用前面的节流缓冲队列和 UI 刷新逻辑）
+            await AiChatHelper.SendStreamChatAttachAsync(
+                apiUrl,
+                apiKey,
+                model,
+                _apiHistory,
+                token => {
+                    // 流式接收回调处理...
+                });
         }
 ```

@@ -18,19 +18,18 @@ namespace AyuUI.Controll.Convertors
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is not bool boolVal)
-                return Visibility.Collapsed;
 
             string param = parameter as string ?? string.Empty;
             bool inverse = param.Contains("Inverse", StringComparison.OrdinalIgnoreCase);
             bool useHidden = param.Contains("Hidden", StringComparison.OrdinalIgnoreCase);
+            if (value is not bool boolVal)
+            {
+                return Visibility.Collapsed;
+            }
 
-            if (inverse) boolVal = !boolVal;
+            if (inverse) return boolVal ? Visibility.Collapsed : Visibility.Visible;
 
-            if (boolVal)
-                return Visibility.Visible;
-
-            return useHidden ? Visibility.Hidden : Visibility.Collapsed;
+            return boolVal ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

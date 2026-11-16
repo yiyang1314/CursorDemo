@@ -241,6 +241,22 @@ namespace AyuUI.Controll.Helpers
 
         #endregion
 
+        /// <summary>
+        /// 将本地图片文件转换为 OpenAI Base64 格式字符串 (data:image/jpeg;base64,...)
+        /// </summary>
+        public static string ImageFileToBase64(string filePath)
+        {
+            byte[] imageBytes = File.ReadAllBytes(filePath);
+            string base64String = Convert.ToBase64String(imageBytes);
+
+            string extension = Path.GetExtension(filePath).ToLower();
+            string mimeType = "image/jpeg";
+            if (extension == ".png") mimeType = "image/png";
+            else if (extension == ".webp") mimeType = "image/webp";
+            else if (extension == ".gif") mimeType = "image/gif";
+
+            return $"data:{mimeType};base64,{base64String}";
+        }
         public static void RunTest()
         {
             // 1. 将高分辨率 PNG 转换为标准的 WPF 应用程序多尺寸 .ico 图标
