@@ -10,7 +10,7 @@
         mc:Ignorable="d"
         StyleMode="MinimalEditor"
         WindowStartupLocation="CenterScreen"
-        Title="Gemini AI 桌面助手" Height="880" Width="900"
+        Title="Gemini AI 桌面助手" Height="880" Width="1200"
         Background="#F0F4F9" 
         ToggleSidebarCommand ="{Binding ToggleThemeCommand}">
     <control:CustomWindow.Resources>
@@ -190,10 +190,20 @@
     </control:CustomWindow.Resources>
     <control:CustomWindow.TitleBarMenuContent>
         <Menu Style="{StaticResource KeycapDarkMenuStyle}" VerticalAlignment="Center">
+            <MenuItem Header="文件(F)" >
+                <MenuItem Header="新建(N)" />
+                <MenuItem Header="保存(G)" />
+                <MenuItem Header="另存为(P)" />
+                <MenuItem Header="撤销(H)" />
+            </MenuItem>
             <MenuItem Header="视图(V)" />
             <MenuItem Header="Git(G)" />
             <MenuItem Header="项目(P)" />
-            <MenuItem Header="帮助(H)" />
+            <MenuItem Header="帮助(H)" >
+                <MenuItem Header="注册(N)" />
+                <MenuItem Header="文档(G)" />
+                <MenuItem Header="关于(P)" />
+            </MenuItem>
         </Menu>
     </control:CustomWindow.TitleBarMenuContent>
     <Grid Background="LightGray">

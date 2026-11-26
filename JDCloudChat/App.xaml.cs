@@ -24,7 +24,6 @@ namespace JDCloudChat
             // 1. 自动扫描当前程序集内所有标记了 [Service] 的类
             container.RegisterFromAssembly(Assembly.GetExecutingAssembly());
             container.RegisterSingleton<AyuMessenger>();
-            container.RegisterSingleton<AyuMessenger>();
 
         }
         protected override void OnStartup(StartupEventArgs e)

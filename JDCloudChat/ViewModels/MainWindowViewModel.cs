@@ -274,7 +274,7 @@ namespace JDCloudChat.ViewModels
             {
                 string errorContent = await response.Content.ReadAsStringAsync();
                 AyuToast.Error($"API 请求失败 (状态码: {response.StatusCode}): {errorContent}");
-                LoggerHelper.Error($"API 请求失败 (状态码: {response.StatusCode}): {errorContent}");
+               // LoggerHelper.Error($"API 请求失败 (状态码: {response.StatusCode}): {errorContent}");
                 throw new HttpRequestException($"API 请求失败 (状态码: {response.StatusCode}): {errorContent}");
             }
 
@@ -282,7 +282,7 @@ namespace JDCloudChat.ViewModels
             using var reader = new StreamReader(stream);
 
             var fullReply = new StringBuilder();
-            LoggerHelper.Info("AI 回复中.....");
+         //   LoggerHelper.Info("AI 回复中.....");
             while (!reader.EndOfStream)
             {
                 if(cancellationToken.IsCancellationRequested)
@@ -318,7 +318,7 @@ namespace JDCloudChat.ViewModels
                 catch (JsonReaderException ex)
                 {
                     // 忽略可能存在的半包 JSON 解析异常
-                    LoggerHelper.Error($"JSON 解析跳过半包数据: {ex.Message}");
+                  //  LoggerHelper.Error($"JSON 解析跳过半包数据: {ex.Message}");
                 }
             }
             AyuToast.Info("回答任务完成");
