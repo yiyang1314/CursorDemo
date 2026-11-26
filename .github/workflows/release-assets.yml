@@ -169,7 +169,14 @@ jobs:
           # so this installer never picks up CursorWpf files.
           $stage = Join-Path $env:RUNNER_TEMP 'JDCloudChat'
           if (!(Test-Path (Join-Path $stage 'JDCloudChat.exe'))) { throw "Missing $stage\JDCloudChat.exe" }
-          & "$env:ISCC" "/DAppVersion=$v" "/DPayloadDir=$stage" 'Installer\JDCloudChat.iss'
+          $payloadFiles = @(Get-ChildItem -LiteralPath $stage -File -ErrorAction Stop)
+          if ($payloadFiles.Count -lt 2 -or $payloadFiles.Name -notcontains 'AyuUI.Controll.dll') {
+            throw "JDCloudChat installer payload is incomplete: $stage"
+          }
+          # Resolve to an absolute path and explicitly override the .iss local fallback.
+          $payloadDir = (Resolve-Path -LiteralPath $stage).Path.TrimEnd('\')
+          Write-Host "JDCloudChat Inno payload: $payloadDir ($($payloadFiles.Count) files)"
+          & "$env:ISCC" "/DAppVersion=$v" "/DPayloadDir=$payloadDir" 'Installer\JDCloudChat.iss'
           if ($LASTEXITCODE -ne 0) { throw "JDCloudChat ISCC failed: $LASTEXITCODE" }
           if (!(Test-Path "Release\JDCloudChat_V$v.exe")) { throw 'JDCloudChat EXE installer missing' }
       - name: Build MSI installer (WiX Toolset 5)
