@@ -77,6 +77,33 @@ jobs:
           New-Item Release -ItemType Directory -Force | Out-Null
           Copy-Item $pkg.FullName Release -Force
           Write-Host "NuGet package: $($pkg.Name) ($($pkg.Length) bytes)"
+      - name: Install AyuUI package for JDCloudChat
+        shell: pwsh
+        run: |
+          # packages/ is gitignored, so install the nupkg built above before compiling
+          # JDCloudChat; otherwise the host links a stale dll and theme resources fail.
+          $pkg = Get-ChildItem 'AyuUI.Controll\bin\Release\AyuUI.Controll.*.nupkg' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (!$pkg) { throw 'AyuUI.Controll nupkg not produced' }
+          $dest = Join-Path 'packages' $pkg.BaseName
+          if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [System.IO.Compression.ZipFile]::ExtractToDirectory($pkg.FullName, $dest)
+          Copy-Item $pkg.FullName $dest -Force
+          if (!(Test-Path (Join-Path $dest 'lib\net48\AyuUI.Controll.dll'))) { throw 'AyuUI.Controll package install failed' }
+          if (!(Get-Command nuget.exe -ErrorAction SilentlyContinue)) {
+            choco install nuget.commandline --no-progress -y
+            if ($LASTEXITCODE -ne 0) { throw 'nuget.commandline installation failed' }
+          }
+          nuget restore 'JDCloudChat\packages.config' -PackagesDirectory packages -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw "JDCloudChat NuGet restore failed: $LASTEXITCODE" }
+      - name: Build JDCloudChat
+        shell: pwsh
+        run: |
+          # JDCloudChat is a legacy .NET Framework 4.8 WPF host that consumes
+          # AyuUI.Controll from .\packages (installed in the previous step).
+          msbuild 'JDCloudChat\JDCloudChat.csproj' /m /t:Rebuild /p:Configuration=Release '/p:Platform=AnyCPU'
+          if ($LASTEXITCODE -ne 0) { throw "JDCloudChat MSBuild failed: $LASTEXITCODE" }
+          if (!(Test-Path 'JDCloudChat\bin\Release\JDCloudChat.exe')) { throw 'JDCloudChat.exe not produced' }
       - name: Stage publish folder
         shell: pwsh
         run: |
@@ -96,6 +123,24 @@ jobs:
           New-Item Release -ItemType Directory -Force | Out-Null
           Compress-Archive -Path Publish\* -DestinationPath "Release\CursorWpf_V$v.zip" -CompressionLevel Optimal
           if (!(Test-Path "Release\CursorWpf_V$v.zip")) { throw 'ZIP creation failed' }
+      - name: Stage and package JDCloudChat ZIP
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $out = 'JDCloudChat\bin\Release'
+          # Stage outside Publish: Inno Setup and WiX glob the whole Publish folder,
+          # so a subfolder there would leak into the CursorWpf EXE/MSI payloads.
+          $stage = Join-Path $env:RUNNER_TEMP 'JDCloudChat'
+          if (!(Test-Path "$out\JDCloudChat.exe")) { throw "Missing $out\JDCloudChat.exe" }
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          New-Item $stage -ItemType Directory -Force | Out-Null
+          Copy-Item "$out\JDCloudChat.exe" $stage -Force
+          if (Test-Path "$out\JDCloudChat.exe.config") { Copy-Item "$out\JDCloudChat.exe.config" $stage -Force }
+          Copy-Item "$out\*.dll" $stage -Force
+          if (!(Test-Path (Join-Path $stage 'AyuUI.Controll.dll'))) { throw 'JDCloudChat payload is missing AyuUI.Controll.dll' }
+          New-Item 'Release' -ItemType Directory -Force | Out-Null
+          Compress-Archive -Path "$stage\*" -DestinationPath "Release\JDCloudChat_V$v.zip" -CompressionLevel Optimal
+          if (!(Test-Path "Release\JDCloudChat_V$v.zip")) { throw 'JDCloudChat ZIP creation failed' }
       - name: Install Inno Setup 6
         shell: pwsh
         run: |
@@ -113,9 +158,20 @@ jobs:
         shell: pwsh
         run: |
           $v = '${{ steps.version.outputs.version }}'
-          & "$env:ISCC" "/DAppVersion=$v" 'Installer\CursorWpf.iss'
+          & "$env:ISCC" "/DAppVersion=$v" "/DPayloadDir=$PWD\Publish" 'Installer\CursorWpf.iss'
           if ($LASTEXITCODE -ne 0) { throw "ISCC failed: $LASTEXITCODE" }
           if (!(Test-Path "Release\CursorWpf_V$v.exe")) { throw 'EXE installer missing' }
+      - name: Build JDCloudChat EXE installer
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          # Payload is the separately staged JDCloudChat folder (see the staging step),
+          # so this installer never picks up CursorWpf files.
+          $stage = Join-Path $env:RUNNER_TEMP 'JDCloudChat'
+          if (!(Test-Path (Join-Path $stage 'JDCloudChat.exe'))) { throw "Missing $stage\JDCloudChat.exe" }
+          & "$env:ISCC" "/DAppVersion=$v" "/DPayloadDir=$stage" 'Installer\JDCloudChat.iss'
+          if ($LASTEXITCODE -ne 0) { throw "JDCloudChat ISCC failed: $LASTEXITCODE" }
+          if (!(Test-Path "Release\JDCloudChat_V$v.exe")) { throw 'JDCloudChat EXE installer missing' }
       - name: Build MSI installer (WiX Toolset 5)
         shell: pwsh
         run: |
@@ -123,21 +179,49 @@ jobs:
           dotnet build 'CursorWpf.MSI\CursorWpf.MSI.wixproj' -c Release -t:Rebuild "-p:AppVersion=$v" "-p:PublishDir=$PWD\Publish" "-p:OutputPath=$PWD\Release\"
           if ($LASTEXITCODE -ne 0) { throw "WiX MSI build failed: $LASTEXITCODE" }
           if (!(Test-Path "Release\CursorWpf_V$v.msi")) { throw 'MSI installer missing' }
+      - name: Build JDCloudChat MSI installer (WiX Toolset 5)
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $stage = Join-Path $env:RUNNER_TEMP 'JDCloudChat'
+          if (!(Test-Path (Join-Path $stage 'JDCloudChat.exe'))) { throw "Missing $stage\JDCloudChat.exe" }
+          dotnet build 'JDCloudChat.MSI\JDCloudChat.MSI.wixproj' -c Release -t:Rebuild "-p:AppVersion=$v" "-p:PublishDir=$stage" "-p:OutputPath=$PWD\Release\"
+          if ($LASTEXITCODE -ne 0) { throw "JDCloudChat WiX MSI build failed: $LASTEXITCODE" }
+          if (!(Test-Path "Release\JDCloudChat_V$v.msi")) { throw 'JDCloudChat MSI installer missing' }
       - name: Verify release assets
         shell: pwsh
         run: |
           $v = '${{ steps.version.outputs.version }}'
-          foreach ($f in @("Release\CursorWpf_V$v.zip", "Release\CursorWpf_V$v.exe", "Release\CursorWpf_V$v.msi")) {
+          $assets = @(
+            "Release\CursorWpf_V$v.zip",
+            "Release\CursorWpf_V$v.exe",
+            "Release\CursorWpf_V$v.msi",
+            "Release\JDCloudChat_V$v.zip",
+            "Release\JDCloudChat_V$v.exe",
+            "Release\JDCloudChat_V$v.msi"
+          )
+          foreach ($f in $assets) {
             if (!(Test-Path $f)) { throw "Missing release asset: $f" }
             if ((Get-Item $f).Length -le 0) { throw "Release asset is empty: $f" }
-            Get-Item $f | Format-Table Name,Length
           }
           $nupkg = Get-ChildItem 'Release\AyuUI.Controll.*.nupkg' -ErrorAction SilentlyContinue
           if (!$nupkg) { throw 'Missing release asset: Release\AyuUI.Controll.*.nupkg' }
           foreach ($f in $nupkg) {
             if ($f.Length -le 0) { throw "Release asset is empty: $($f.FullName)" }
-            $f | Format-Table Name,Length
           }
+          # Cross-app isolation: each ZIP carries only its own application payload.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          function Get-ZipNames($path) {
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($path)
+            try { return @($zip.Entries | ForEach-Object { $_.FullName }) } finally { $zip.Dispose() }
+          }
+          $cwNames = Get-ZipNames "Release\CursorWpf_V$v.zip"
+          $jdNames = Get-ZipNames "Release\JDCloudChat_V$v.zip"
+          if ($cwNames -contains 'JDCloudChat.exe') { throw 'CursorWpf ZIP contains JDCloudChat.exe' }
+          if ($jdNames -contains 'CursorWpf.exe') { throw 'JDCloudChat ZIP contains CursorWpf.exe' }
+          if ($jdNames -notcontains 'AyuUI.Controll.dll') { throw 'JDCloudChat ZIP is missing AyuUI.Controll.dll' }
+          Get-ChildItem 'Release' -Recurse -File -Include *.zip,*.exe,*.msi,*.nupkg |
+            Sort-Object FullName | Format-Table Name,Length
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -147,9 +231,12 @@ jobs:
             Release/CursorWpf_V${{ steps.version.outputs.version }}.exe
             Release/CursorWpf_V${{ steps.version.outputs.version }}.msi
             Release/AyuUI.Controll.*.nupkg
+            Release/JDCloudChat_V${{ steps.version.outputs.version }}.zip
+            Release/JDCloudChat_V${{ steps.version.outputs.version }}.exe
+            Release/JDCloudChat_V${{ steps.version.outputs.version }}.msi
           if-no-files-found: error
           retention-days: 30
-      - name: Publish GitHub Release with ZIP, EXE, MSI and NuGet assets
+      - name: Publish GitHub Release with ZIP, EXE, MSI, JDCloudChat and NuGet assets
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
@@ -161,13 +248,19 @@ jobs:
             - ZIP portable package
             - EXE installer (Inno Setup 6)
             - MSI installer (WiX Toolset 5)
+            - JDCloudChat portable ZIP (AyuUI host application)
+            - JDCloudChat EXE installer (Inno Setup 6)
+            - JDCloudChat MSI installer (WiX Toolset 5)
             - AyuUI.Controll NuGet package (net48 / net6.0-windows / net8.0-windows)
-            Download ZIP, EXE, MSI or the NuGet package from the Assets section below.
+            Download ZIP, EXE, MSI, JDCloudChat or the NuGet package from the Assets section below.
           files: |
             Release/CursorWpf_V${{ steps.version.outputs.version }}.zip
             Release/CursorWpf_V${{ steps.version.outputs.version }}.exe
             Release/CursorWpf_V${{ steps.version.outputs.version }}.msi
             Release/AyuUI.Controll.*.nupkg
+            Release/JDCloudChat_V${{ steps.version.outputs.version }}.zip
+            Release/JDCloudChat_V${{ steps.version.outputs.version }}.exe
+            Release/JDCloudChat_V${{ steps.version.outputs.version }}.msi
           fail_on_unmatched_files: true
           overwrite_files: true
           generate_release_notes: true

@@ -424,6 +424,10 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
+# WiX project folders end with ".MSI" and must stay tracked (only binaries are ignored)
+!CursorWpf.MSI/
+!JDCloudChat.MSI/
+
 # Official VS Code C# Dev Kit Extension exclusion
 #*.lscache
 

@@ -1,0 +1,12 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <AppVersion Condition="'$(AppVersion)' == ''">1.1.0</AppVersion>
+    <!-- JDCloudChat payload is staged separately from the CursorWpf Publish folder. -->
+    <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildProjectDirectory)\..\Build\temp\JDCloudChat</PublishDir>
+    <OutputPath Condition="'$(OutputPath)' == ''">$(MSBuildProjectDirectory)\..\Release\</OutputPath>
+    <OutputName>JDCloudChat_V$(AppVersion)</OutputName>
+    <DefineConstants>AppVersion=$(AppVersion);PublishDir=$(PublishDir)</DefineConstants>
+  </PropertyGroup>
+</Project>

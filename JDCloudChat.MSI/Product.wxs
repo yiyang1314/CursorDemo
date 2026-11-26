@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="JDCloudChat"
+    Manufacturer="JDCloudChat"
+    Version="$(var.AppVersion)"
+    UpgradeCode="5B9E3C7A-2F84-4D16-A7E3-8C1F6B0D924E"
+    Scope="perMachine"
+    InstallerVersion="500">
+
+    <SummaryInformation Description="JDCloudChat Windows Installer Package" Manufacturer="JDCloudChat" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of JDCloudChat is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Feature Id="MainFeature" Title="JDCloudChat" Level="1">
+      <ComponentGroupRef Id="ApplicationFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="JDCloudChat" />
+    </StandardDirectory>
+    <!-- ProgramMenuFolder is a per-user location; its component must use an HKCU key path. -->
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="JDCloudChat" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ApplicationFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+
+    <!-- Keep the per-user Start Menu shortcut isolated from per-machine application files. -->
+    <Component Id="StartMenuShortcut" Directory="ApplicationProgramsFolder" Guid="3E7A9C12-8B4D-4F60-9A21-6D5C3B8E7F42">
+      <Shortcut Id="JDCloudChatStartMenuShortcut"
+                Name="JDCloudChat"
+                Target="[INSTALLFOLDER]JDCloudChat.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveJDCloudChatStartMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKCU"
+                     Key="Software\JDCloudChat"
+                     Name="StartMenuShortcutInstalled"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+  </Fragment>
+</Wix>

@@ -7,8 +7,9 @@ rem               + publish.bat + package.bat
 rem
 rem  Pipeline: locate MSBuild engine -> build Release -> stage
 rem            Publish folder -> create ZIP -> pack AyuUI.Controll
-rem            NuGet -> create EXE installer (Inno Setup 6) -> MSI
-rem            (WiX Toolset 5) -> clean staging
+rem            NuGet -> install package for JDCloudChat -> build/stage/
+rem            package JDCloudChat -> create EXE installer (Inno Setup 6)
+rem            -> MSI (WiX Toolset 5) -> clean staging
 rem
 rem  Artifacts (naming rule: ProjectName_VX.X.X):
 rem    Release\CursorWpf_V<version>.zip
@@ -16,6 +17,9 @@ rem    Release\CursorWpf_V<version>.exe   (requires Inno Setup 6)
 rem    Release\CursorWpf_V<version>.msi   (requires .NET 8 SDK + WiX 5)
 rem    Release\AyuUI.Controll.<pkgversion>.nupkg (multi-target class library,
 rem      pkgversion comes from AyuUI.Controll.csproj <Version>)
+rem    Release\JDCloudChat_V<version>.zip (AyuUI host app)
+rem    Release\JDCloudChat_V<version>.exe
+rem    Release\JDCloudChat_V<version>.msi
 rem  Version source: Build\version.txt (plain ASCII X.Y.Z, no BOM)
 rem ============================================================
 cd /d "%~dp0.."
@@ -24,8 +28,15 @@ set "BUILD_DIR=%~dp0"
 set "SLN=%ROOT%\CursorWpf.sln"
 set "APP_PROJ=%ROOT%\CursorWpf.App\CursorWpf.App.csproj"
 set "AYUUI_PROJ=%ROOT%\AyuUI.Controll\AyuUI.Controll.csproj"
+set "JD_PROJ=%ROOT%\JDCloudChat\JDCloudChat.csproj"
 set "PUBLISH=%ROOT%\Publish"
 set "RELEASE=%ROOT%\Release"
+set "JD_RELEASE=%RELEASE%"
+set "TEMP_DIR=%ROOT%\Build\temp"
+rem  JDCloudChat is staged outside %PUBLISH% on purpose: Inno Setup and WiX both
+rem  glob the whole Publish folder, so a subfolder there would leak into the
+rem  CursorWpf EXE/MSI payloads.
+set "JD_PUBLISH=%TEMP_DIR%\JDCloudChat"
 
 echo ============================================================
 echo  CursorWpf automated build, publish and package
@@ -246,23 +257,133 @@ for %%F in ("%RELEASE%\%AYUUI_PKG%") do if %%~zF LEQ 0 (
 )
 echo [OK] Created %RELEASE%\%AYUUI_PKG%
 
+rem ---------- 5.6) install the freshly built AyuUI nupkg for JDCloudChat ----------
+rem  JDCloudChat consumes AyuUI.Controll from .\packages (gitignored), so the package
+rem  built above has to be installed there before the host is compiled. Otherwise the
+rem  host links a stale dll and fails at runtime on missing theme resources.
+if not exist "%JD_PROJ%" (
+    echo [ERROR] JDCloudChat project not found: %JD_PROJ%
+    exit /b 9
+)
+if exist "%TEMP_DIR%" rmdir /s /q "%TEMP_DIR%"
+mkdir "%TEMP_DIR%\ayui_pkg" >nul 2>nul
+tar -xf "%AYUUI_NUPKG%" -C "%TEMP_DIR%\ayui_pkg"
+if errorlevel 1 (
+    echo [ERROR] Failed to extract %AYUUI_NUPKG%.
+    exit /b 9
+)
+for %%F in ("%AYUUI_PKG%") do set "JD_PKG_NAME=%%~nF"
+if not defined JD_PKG_NAME (
+    echo [ERROR] Cannot determine AyuUI.Controll package version.
+    exit /b 9
+)
+set "JD_PKG_DIR=%ROOT%\packages\%JD_PKG_NAME%"
+if exist "%JD_PKG_DIR%" rmdir /s /q "%JD_PKG_DIR%"
+xcopy /e /i /y "%TEMP_DIR%\ayui_pkg\lib" "%JD_PKG_DIR%\lib" >nul
+copy /y "%AYUUI_NUPKG%" "%JD_PKG_DIR%\" >nul
+if exist "%TEMP_DIR%\ayui_pkg\README.md" copy /y "%TEMP_DIR%\ayui_pkg\README.md" "%JD_PKG_DIR%\README.md" >nul
+if not exist "%JD_PKG_DIR%\lib\net48\AyuUI.Controll.dll" (
+    echo [ERROR] AyuUI.Controll package install failed: %JD_PKG_DIR%
+    exit /b 9
+)
+echo [OK] Installed AyuUI package for JDCloudChat: packages\%JD_PKG_NAME%
+
+rem  Restore the remaining packages.config dependencies when the local cache is empty
+rem  (clean checkout / CI). AyuUI.Controll is already in place above.
+if not exist "%ROOT%\packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll" (
+    set "NUGET_EXE="
+    for /f "delims=" %%I in ('where nuget.exe 2^>nul') do if not defined NUGET_EXE set "NUGET_EXE=%%~I"
+    if not defined NUGET_EXE if exist "%ROOT%\.nuget\nuget.exe" set "NUGET_EXE=%ROOT%\.nuget\nuget.exe"
+    if not defined NUGET_EXE (
+        echo [ERROR] nuget.exe not found; cannot restore JDCloudChat packages.config.
+        exit /b 9
+    )
+    echo [RESTORE] JDCloudChat packages.config...
+    "%NUGET_EXE%" restore "%ROOT%\JDCloudChat\packages.config" -PackagesDirectory "%ROOT%\packages" -NonInteractive
+    if errorlevel 1 (
+        echo [ERROR] JDCloudChat NuGet restore failed.
+        exit /b 9
+    )
+)
+
+rem ---------- 5.7) build, stage and package JDCloudChat ----------
+echo [BUILD] JDCloudChat Release / AnyCPU
+if /i "%MSBUILD_MODE%"=="DOTNET" (
+    "%MSBUILD_EXE%" msbuild "%JD_PROJ%" /m /t:Rebuild /p:Configuration=Release "/p:Platform=AnyCPU" "/p:CustomAfterMicrosoftCommonTargets=%BUILD_DIR%wpf-legacy.targets" "/p:WpfSdkWinFXTargets=%MSBUILD_WINFX%" /verbosity:minimal /nologo
+) else (
+    "%MSBUILD_EXE%" "%JD_PROJ%" /m /t:Rebuild /p:Configuration=Release "/p:Platform=AnyCPU" /p:RestorePackages=false /verbosity:minimal
+)
+if errorlevel 1 (
+    echo [ERROR] JDCloudChat build failed.
+    exit /b 9
+)
+if not exist "%ROOT%\JDCloudChat\bin\Release\JDCloudChat.exe" (
+    echo [ERROR] JDCloudChat release EXE not found.
+    exit /b 9
+)
+if exist "%JD_PUBLISH%" rmdir /s /q "%JD_PUBLISH%"
+mkdir "%JD_PUBLISH%" >nul 2>nul
+copy /y "%ROOT%\JDCloudChat\bin\Release\JDCloudChat.exe" "%JD_PUBLISH%\" >nul
+if exist "%ROOT%\JDCloudChat\bin\Release\JDCloudChat.exe.config" copy /y "%ROOT%\JDCloudChat\bin\Release\JDCloudChat.exe.config" "%JD_PUBLISH%\" >nul
+for %%F in ("%ROOT%\JDCloudChat\bin\Release\*.dll") do if exist "%%~fF" copy /y "%%~fF" "%JD_PUBLISH%\" >nul
+if not exist "%JD_PUBLISH%\AyuUI.Controll.dll" (
+    echo [ERROR] JDCloudChat payload is missing AyuUI.Controll.dll.
+    exit /b 9
+)
+if not exist "%JD_RELEASE%" mkdir "%JD_RELEASE%"
+set "JD_NAME=JDCloudChat_V%VERSION%"
+if exist "%JD_RELEASE%\%JD_NAME%.zip" del /q "%JD_RELEASE%\%JD_NAME%.zip"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Compress-Archive -Path '%JD_PUBLISH%\*' -DestinationPath '%JD_RELEASE%\%JD_NAME%.zip' -Force"
+if errorlevel 1 (
+    echo [ERROR] JDCloudChat ZIP packaging failed.
+    exit /b 9
+)
+for %%F in ("%JD_RELEASE%\%JD_NAME%.zip") do if %%~zF LEQ 0 (
+    echo [ERROR] JDCloudChat ZIP is empty.
+    exit /b 9
+)
+echo [OK] Created %JD_RELEASE%\%JD_NAME%.zip
+
 rem ---------- 6) package EXE installer: Release\CursorWpf_V<version>.exe ----------
 set "ISCC="
 where ISCC.exe >nul 2>nul && set "ISCC=ISCC.exe"
 if not defined ISCC if exist "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 if not defined ISCC if exist "%ProgramFiles%\Inno Setup 6\ISCC.exe" set "ISCC=%ProgramFiles%\Inno Setup 6\ISCC.exe"
 if defined ISCC goto :pack_exe
-echo [WARN] Inno Setup 6 not found, EXE installer skipped. ZIP package is still created.
+echo [WARN] Inno Setup 6 not found, EXE installers (CursorWpf + JDCloudChat) skipped. ZIP packages are still created.
 echo         Install Inno Setup 6 from https://jrsoftware.org/isinfo.php to build the EXE.
 goto :pack_msi
 
 :pack_exe
-"%ISCC%" /DAppVersion=%VERSION% "%ROOT%\Installer\CursorWpf.iss"
+"%ISCC%" /DAppVersion=%VERSION% /DPayloadDir="%PUBLISH%" "%ROOT%\Installer\CursorWpf.iss"
 if errorlevel 1 (
     echo [ERROR] Inno Setup packaging failed.
     exit /b 6
 )
 echo [OK] Created %RELEASE%\%NAME%.exe
+
+:pack_jd_exe
+rem ---------- 6.5) package JDCloudChat EXE installer: Release\JDCloudChat_V<version>.exe ----------
+if not exist "%ROOT%\Installer\JDCloudChat.iss" (
+    echo [ERROR] Installer script not found: Installer\JDCloudChat.iss
+    exit /b 10
+)
+echo [EXE] Building JDCloudChat installer with Inno Setup 6...
+if exist "%JD_RELEASE%\%JD_NAME%.exe" del /q "%JD_RELEASE%\%JD_NAME%.exe"
+"%ISCC%" /DAppVersion=%VERSION% /DPayloadDir="%JD_PUBLISH%" "%ROOT%\Installer\JDCloudChat.iss"
+if errorlevel 1 (
+    echo [ERROR] JDCloudChat Inno Setup packaging failed.
+    exit /b 10
+)
+if not exist "%JD_RELEASE%\%JD_NAME%.exe" (
+    echo [ERROR] JDCloudChat EXE installer missing: %JD_RELEASE%\%JD_NAME%.exe
+    exit /b 10
+)
+for %%F in ("%JD_RELEASE%\%JD_NAME%.exe") do if %%~zF LEQ 0 (
+    echo [ERROR] JDCloudChat EXE installer is empty.
+    exit /b 10
+)
+echo [OK] Created %JD_RELEASE%\%JD_NAME%.exe
 
 :pack_msi
 rem ---------- 7) package MSI installer via WiX Toolset 5 ----------
@@ -289,6 +410,29 @@ for %%F in ("%RELEASE%\%NAME%.msi") do if %%~zF LEQ 0 (
 )
 echo [OK] Created %RELEASE%\%NAME%.msi
 
+:pack_jd_msi
+rem ---------- 7.5) package JDCloudChat MSI via WiX Toolset 5: Release\JDCloudChat_V<version>.msi ----------
+if not exist "%ROOT%\JDCloudChat.MSI\JDCloudChat.MSI.wixproj" (
+    echo [ERROR] WiX project not found: JDCloudChat.MSI\JDCloudChat.MSI.wixproj
+    exit /b 11
+)
+echo [MSI] Building JDCloudChat MSI with WiX Toolset 5 SDK...
+if exist "%JD_RELEASE%\%JD_NAME%.msi" del /q "%JD_RELEASE%\%JD_NAME%.msi"
+"%DOTNET_EXE%" build "%ROOT%\JDCloudChat.MSI\JDCloudChat.MSI.wixproj" -c Release -t:Rebuild -p:AppVersion=%VERSION% -p:PublishDir="%JD_PUBLISH%" -p:OutputPath="%JD_RELEASE%\"
+if errorlevel 1 (
+    echo [ERROR] JDCloudChat MSI packaging failed.
+    exit /b 11
+)
+if not exist "%JD_RELEASE%\%JD_NAME%.msi" (
+    echo [ERROR] JDCloudChat MSI output missing: %JD_RELEASE%\%JD_NAME%.msi
+    exit /b 11
+)
+for %%F in ("%JD_RELEASE%\%JD_NAME%.msi") do if %%~zF LEQ 0 (
+    echo [ERROR] JDCloudChat MSI output is empty.
+    exit /b 11
+)
+echo [OK] Created %JD_RELEASE%\%JD_NAME%.msi
+
 :summary
 rem ---------- 8) clean temp staging folder ----------
 if exist "%PUBLISH%" (
@@ -303,6 +447,16 @@ if exist "%PUBLISH%" (
 ) else (
     echo [OK] Temp Publish folder cleaned.
 )
+if exist "%TEMP_DIR%" (
+    rmdir /s /q "%TEMP_DIR%" 2>nul
+    ping -n 2 127.0.0.1 >nul
+    rmdir /s /q "%TEMP_DIR%" 2>nul
+)
+if exist "%TEMP_DIR%" (
+    echo [WARN] Temp Build\temp folder could not be fully removed. Delete it manually.
+) else (
+    echo [OK] Temp Build\temp folder cleaned.
+)
 
 echo ------------------------------------------------------------
 echo [SUCCESS] Artifacts:
@@ -310,6 +464,9 @@ if exist "%RELEASE%\%NAME%.zip" echo   %RELEASE%\%NAME%.zip
 if exist "%RELEASE%\%NAME%.exe" echo   %RELEASE%\%NAME%.exe
 if exist "%RELEASE%\%NAME%.msi" echo   %RELEASE%\%NAME%.msi
 if defined AYUUI_PKG echo   %RELEASE%\%AYUUI_PKG%
+if exist "%JD_RELEASE%\%JD_NAME%.zip" echo   %JD_RELEASE%\%JD_NAME%.zip
+if exist "%JD_RELEASE%\%JD_NAME%.exe" echo   %JD_RELEASE%\%JD_NAME%.exe
+if exist "%JD_RELEASE%\%JD_NAME%.msi" echo   %JD_RELEASE%\%JD_NAME%.msi
 echo ------------------------------------------------------------
 endlocal
 exit /b 0
